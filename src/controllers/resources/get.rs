@@ -15,7 +15,7 @@ pub struct ResourceQuery {
     pub target: Option<String>,
 }
 
-/// Récupère une ressource unique avec traitement selon url parameters
+/// Fetches a single resource and processes it according to URL parameters.
 ///
 /// # Route
 /// `GET /r/{category}/{*file_path}?width=300&target=Phone`
@@ -59,7 +59,7 @@ pub async fn get_resource(
     };
 
     let resource_path = file_path;
-    // Valider la catégorie
+    // Validate category
     let category = match ResourceCategory::from_str(&category) {
         Ok(cat) => cat,
         Err(e) => {
@@ -68,16 +68,16 @@ pub async fn get_resource(
         }
     };
 
-    // Valider le chemin contre les traversées de répertoires
+    // Guard against path traversal
     if resource_path.contains("..") {
         tracing::warn!("Invalid path traversal attempt: {}", resource_path);
         return (StatusCode::BAD_REQUEST, "Invalid path").into_response();
     }
 
-    // Construire la clé S3
+    // Build S3 key
     let s3_key = format!("{}/{}", category.s3_prefix(), resource_path);
 
-    // Récupérer et traiter l'image
+    // Fetch and process image
     match image_processor::get_or_process_cached(s3_key, config).await {
         Ok(processed_bytes) => (
             [(header::CONTENT_TYPE, "image/jpeg")],

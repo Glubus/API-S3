@@ -30,18 +30,21 @@ impl RawImage {
         }
     }
 }
-/// Décode une image depuis un buffer de bytes.
+
+/// Decodes an image from a byte buffer.
+///
+/// Tries WebP, then JPEG (zune-jpeg), then falls back to the `image` crate.
 ///
 /// # Arguments
-/// * `data` - Le buffer de bytes contenant l'image.
+/// * `data` - Raw image bytes.
 ///
 /// # Errors
-/// * `ImageProcessingError::DecodeError` - Si l'image ne peut pas être décodée.
-/// * `ImageProcessingError::InternalError` - Si une erreur interne se produit.
+/// * `ImageProcessingError::DecodeError` - If the image cannot be decoded.
+/// * `ImageProcessingError::InternalError` - If an internal error occurs.
 ///
 /// # Returns
-/// * `Ok(RawImage)` - L'image décodée brute.
-/// * `Err(ImageProcessingError)` - L'erreur de décodage.
+/// * `Ok(RawImage)` - Decoded image in its raw form.
+/// * `Err(ImageProcessingError)` - Decode error.
 pub fn decode_image(data: &[u8]) -> Result<RawImage, ImageProcessingError> {
     if is_webp(data) {
         return decode_webp(data);
@@ -55,11 +58,12 @@ pub fn decode_image(data: &[u8]) -> Result<RawImage, ImageProcessingError> {
 fn is_webp(data: &[u8]) -> bool {
     matches!(data.get(0..12), Some(b) if &b[0..4] == b"RIFF" && &b[8..12] == b"WEBP")
 }
-/// Décode une image WebP via libwebp (bindings natifs).
+
+/// Decodes a WebP image via libwebp (native FFI bindings).
 ///
-/// # Pourquoi libwebp ?
-/// Le décodeur pur-Rust (image-webp) atteint 70-100% de la vitesse de libwebp.
-/// Avec les optimisations assembleur de libwebp, on gagne ~30-40% sur le décodage.
+/// # Why libwebp over pure-Rust image-webp?
+/// The pure-Rust decoder reaches 70-100% of libwebp speed.
+/// libwebp's assembly optimizations give an additional ~30-40% on decode.
 fn decode_webp(data: &[u8]) -> Result<RawImage, ImageProcessingError> {
     let decoder = webp::Decoder::new(data);
     decoder
@@ -67,20 +71,23 @@ fn decode_webp(data: &[u8]) -> Result<RawImage, ImageProcessingError> {
         .map(RawImage::WebP)
         .ok_or_else(|| ImageProcessingError::DecodeError("Failed to decode WebP".to_string()))
 }
+
 fn is_jpeg(data: &[u8]) -> bool {
     data.len() > 2 && data[0] == 0xFF && data[1] == 0xD8
 }
-/// Helper pour finaliser le décodage zune-jpeg après succès de la décompression.
-/// Pourquoi ? Isole la manipulation des buffers zune pour plus de clarté.
+
+/// Decodes a JPEG using zune-jpeg, falling back to the `image` crate on failure.
+///
+/// Isolates zune buffer manipulation for clarity.
+///
 /// # Arguments
-/// * `decoder` - Le décodeur zune-jpeg.
-/// * `pixels` - Les pixels de l'image.
+/// * `data` - Raw JPEG bytes.
 ///
 /// # Returns
-/// Un `RawImage` contenant l'image décodée.
+/// A `RawImage::Jpeg` on success, or falls back to `decode_fallback`.
 ///
 /// # Errors
-/// * `ImageProcessingError::DecodeError` - Si les dimensions sont manquantes ou si la création du buffer échoue.
+/// * `ImageProcessingError::DecodeError` - If dimensions are missing or buffer creation fails.
 fn decode_jpeg(data: &[u8]) -> Result<RawImage, ImageProcessingError> {
     let mut decoder = zune_jpeg::JpegDecoder::new(ZCursor::new(data));
     if let Ok(pixels) = decoder.decode()

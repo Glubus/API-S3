@@ -11,23 +11,24 @@ use std::io::Cursor;
 pub use decoder::{RawImage, decode_image};
 pub use encoder::encode_image;
 pub use resizer::{compute_target_dimensions, resize_image};
-/// Orchestre la récupération, le traitement et la mise en cache d'une image.
+
+/// Orchestrates image fetching, processing, and caching.
 ///
-/// # Pourquoi cette fonction ?
-/// Centralise la logique complexe pour éviter la duplication entre les routes
-/// image unique et bulk. Permet également d'assurer une gestion cohérente du cache.
+/// # Why this function?
+/// Centralizes the complex pipeline logic to avoid duplication between
+/// the single-image and bulk routes, and ensures consistent cache handling.
 ///
 /// # Arguments
-/// * `name` - Le nom de l'image.
-/// * `config` - La configuration du périphérique.
+/// * `name` - The image key (S3 path).
+/// * `config` - Device configuration (target, width, height).
 ///
 /// # Errors
-/// * `ImageProcessingError::NotFound` - Si l'image n'est pas trouvée.
-/// * `ImageProcessingError::InternalError` - Si une erreur interne se produit.
+/// * `ImageProcessingError::NotFound` - If the image does not exist in storage.
+/// * `ImageProcessingError::InternalError` - If an internal error occurs.
 ///
 /// # Returns
-/// * `Ok(Vec<u8>)` - Le buffer de bytes contenant l'image traitée.
-/// * `Err(ImageProcessingError)` - L'erreur de traitement.
+/// * `Ok(Vec<u8>)` - Byte buffer containing the processed image.
+/// * `Err(ImageProcessingError)` - Processing error.
 #[tracing::instrument(fields(image.key = %name, image.width = config.width, image.height = config.height))]
 pub async fn get_or_process_cached(
     name: String,
@@ -39,7 +40,7 @@ pub async fn get_or_process_cached(
         tracing::debug!(cache.hit = true, "Cache hit");
         return Ok(cached);
     }
-    tracing::debug!(cache.hit = false, "Cache miss — fetching from S3");
+    tracing::debug!(cache.hit = false, "Cache miss, fetching from S3");
 
     let image_data = match StorageService::get_image(&name).await {
         Ok(data) => data,
@@ -59,19 +60,22 @@ pub async fn get_or_process_cached(
 
     Ok(processed_data)
 }
-/// Traite une image en la redimensionnant selon la configuration du périphérique.
+
+/// Processes an image by resizing it according to the device configuration.
+///
+/// Delegates to `process_image_with_quality` using the device's default quality.
 ///
 /// # Arguments
-/// * `image_data` - Le buffer de bytes contenant l'image.
-/// * `config` - La configuration du périphérique.
+/// * `image_data` - Raw image bytes.
+/// * `config` - Device configuration.
 ///
 /// # Errors
-/// * `ImageProcessingError::DecodeError` - Si l'image ne peut pas être décodée.
-/// * `ImageProcessingError::InternalError` - Si une erreur interne se produit.
+/// * `ImageProcessingError::DecodeError` - If the image cannot be decoded.
+/// * `ImageProcessingError::InternalError` - If an internal error occurs.
 ///
 /// # Returns
-/// * `Ok(Vec<u8>)` - Le buffer de bytes contenant l'image traitée.
-/// * `Err(ImageProcessingError)` - L'erreur de traitement.
+/// * `Ok(Vec<u8>)` - Processed image bytes.
+/// * `Err(ImageProcessingError)` - Processing error.
 pub async fn process_image(
     image_data: Vec<u8>,
     config: DeviceConfig,
@@ -79,13 +83,14 @@ pub async fn process_image(
     let quality = config.target.default_quality();
     process_image_with_quality(image_data, config, quality).await
 }
-/// Extrait les dimensions d'une image.
+
+/// Extracts the dimensions of an image without full decoding.
 ///
 /// # Arguments
-/// * `data` - Les données de l'image.
+/// * `data` - Raw image bytes.
 ///
 /// # Errors
-/// * `ImageProcessingError::DecodeError` - Si l'image ne peut pas être décodée.
+/// * `ImageProcessingError::DecodeError` - If the image cannot be read.
 pub fn extract_dimensions(data: &[u8]) -> Result<(u32, u32), ImageProcessingError> {
     let reader = image::ImageReader::new(Cursor::new(data))
         .with_guessed_format()
@@ -97,7 +102,7 @@ pub fn extract_dimensions(data: &[u8]) -> Result<(u32, u32), ImageProcessingErro
 
 use image::{ImageBuffer, Pixel};
 
-// Fonction générique qui gère n'importe quel type de pixel basé sur des u8
+// Generic helper that handles any u8-based pixel type
 fn process_unsharpen<P>(
     w: u32,
     h: u32,
@@ -109,12 +114,11 @@ where
 {
     let img_buf = ImageBuffer::<P, _>::from_raw(w, h, buffer)
         .ok_or_else(|| ImageProcessingError::InternalError(err_msg.into()))?;
-    // unsharpen alloue un nouveau buffer de toute façon pour le résultat
+    // unsharpen always allocates a new buffer for the result
     let sharpened = image::imageops::unsharpen(&img_buf, 0.5, 1);
     Ok(sharpened.into_raw())
 }
 
-// Ta fonction principale devient super propre :
 fn apply_sharpening(
     buffer: Vec<u8>,
     w: u32,
@@ -127,20 +131,23 @@ fn apply_sharpening(
         process_unsharpen::<image::Rgba<u8>>(w, h, buffer, "Failed to create RGBA dest buffer")
     }
 }
-/// Traite une image en la redimensionnant selon la configuration du périphérique.
+
+/// Processes an image: decode → resize → sharpen → encode WebP.
+///
+/// Runs inside `spawn_blocking` to avoid blocking the async runtime.
 ///
 /// # Arguments
-/// * `image_data` - Le buffer de bytes contenant l'image.
-/// * `config` - La configuration du périphérique.
-/// * `quality` - La qualité de l'image.
+/// * `image_data` - Raw image bytes.
+/// * `config` - Device configuration.
+/// * `quality` - WebP encoding quality (0–100).
 ///
 /// # Errors
-/// * `ImageProcessingError::DecodeError` - Si l'image ne peut pas être décodée.
-/// * `ImageProcessingError::InternalError` - Si une erreur interne se produit.
+/// * `ImageProcessingError::DecodeError` - If the image cannot be decoded.
+/// * `ImageProcessingError::InternalError` - If an internal error occurs.
 ///
 /// # Returns
-/// * `Ok(Vec<u8>)` - Le buffer de bytes contenant l'image traitée.
-/// * `Err(ImageProcessingError)` - L'erreur de traitement.
+/// * `Ok(Vec<u8>)` - Processed image bytes.
+/// * `Err(ImageProcessingError)` - Processing error.
 pub async fn process_image_with_quality(
     image_data: Vec<u8>,
     config: DeviceConfig,

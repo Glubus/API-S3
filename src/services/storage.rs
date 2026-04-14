@@ -2,27 +2,27 @@ use crate::services::errors::StorageError;
 use aws_sdk_s3::error::ProvideErrorMetadata;
 use dotenvy::dotenv;
 
-/// Service de stockage avec AWS S3.
+/// Storage service backed by AWS S3 / MinIO.
 ///
-/// # Pourquoi ce service ?
-/// - Découple le contrôleur du système de fichiers local.
-/// - Utilise AWS S3 comme backend de stockage.
-/// - Permet une meilleure scalabilité et une gestion distribuée des fichiers.
+/// # Why this service?
+/// - Decouples controllers from the underlying storage backend.
+/// - Uses AWS S3 as the storage backend (compatible with MinIO).
+/// - Enables better scalability and distributed file management.
 pub struct StorageService;
 
 impl StorageService {
-    /// Crée un client AWS S3 à partir des variables d'environnement.
+    /// Creates an AWS S3 client from environment variables.
     async fn create_client() -> Result<aws_sdk_s3::Client, StorageError> {
         dotenv().ok();
 
-        // Charger les credentials S3 custom
+        // Load custom S3 credentials
         let access_key =
             std::env::var("S3_ACCESS_KEY").unwrap_or_else(|_| "minioadmin".to_string());
         let secret_key =
             std::env::var("S3_SECRET_KEY").unwrap_or_else(|_| "minioadmin".to_string());
         let region = std::env::var("AWS_REGION").unwrap_or_else(|_| "us-east-1".to_string());
 
-        // Créer les credentials
+        // Build credentials
         let creds = aws_sdk_s3::config::Credentials::new(
             access_key,
             secret_key,
@@ -31,16 +31,16 @@ impl StorageService {
             "custom-provider",
         );
 
-        // Charger la configuration AWS de base
+        // Load base AWS config
         let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
             .region(aws_sdk_s3::config::Region::new(region))
             .load()
             .await;
 
-        // Builder pour S3
+        // Build S3 config
         let mut s3_builder = aws_sdk_s3::config::Builder::from(&config).credentials_provider(creds);
 
-        // Si un endpoint custom est fourni (pour MinIO ou autre S3-compatible)
+        // Apply custom endpoint if provided (for MinIO or other S3-compatible stores)
         if let Ok(endpoint_url) = std::env::var("S3_ENDPOINT") {
             s3_builder = s3_builder.endpoint_url(endpoint_url).force_path_style(true);
         }
@@ -49,7 +49,7 @@ impl StorageService {
         Ok(aws_sdk_s3::Client::from_conf(s3_config))
     }
 
-    /// Valide la clé S3 pour prévenir les traversées de répertoires.
+    /// Validates an S3 key to prevent path traversal attacks.
     fn validate_key(key: &str) -> Result<(), StorageError> {
         if key.contains("..") {
             return Err(StorageError::NotFound("Invalid key".to_string()));
@@ -57,7 +57,7 @@ impl StorageService {
         Ok(())
     }
 
-    /// Convertit une erreur S3 en `StorageError`.
+    /// Maps an S3 SDK error to a `StorageError`.
     fn map_s3_error(
         e: &aws_sdk_s3::error::SdkError<aws_sdk_s3::operation::get_object::GetObjectError>,
         key: &str,
@@ -85,7 +85,7 @@ impl StorageService {
         }
     }
 
-    /// Récupère et lit le corps de la réponse S3 en bytes.
+    /// Collects the S3 response body into a byte vector.
     async fn collect_body(
         response: aws_sdk_s3::operation::get_object::GetObjectOutput,
     ) -> Result<Vec<u8>, StorageError> {
@@ -103,14 +103,14 @@ impl StorageService {
         Ok(bytes.to_vec())
     }
 
-    /// Récupère un fichier depuis AWS S3.
+    /// Fetches a file from AWS S3.
     ///
     /// # Arguments
-    /// * `key` - La clé (nom du fichier) à récupérer (ex: "`icons/icon_ampoule.png`").
+    /// * `key` - The S3 key (file path) to retrieve (e.g. `"icons/icon_ampoule.png"`).
     ///
     /// # Errors
-    /// * `StorageError::NotFound` - Si le fichier n'est pas trouvé.
-    /// * `StorageError::IoError` - Si une erreur réseau ou S3 se produit.
+    /// * `StorageError::NotFound` - If the file does not exist in the bucket.
+    /// * `StorageError::IoError` - If a network or S3 error occurs.
     #[tracing::instrument(fields(s3.key = %key))]
     pub async fn get_image(key: &str) -> Result<Vec<u8>, StorageError> {
         dotenv().ok();

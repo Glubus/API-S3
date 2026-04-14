@@ -58,41 +58,69 @@ fn build_multipart_chunk(name: &str, data: &[u8], boundary: &str) -> Bytes {
     Bytes::from(chunk)
 }
 
-fn spawn_stream(
+/// Sends one multipart chunk. Returns `false` if the receiver disconnected.
+async fn send_chunk(
+    tx: &mpsc::Sender<Result<Bytes, std::convert::Infallible>>,
+    name: &str,
+    data: &[u8],
+    boundary: &str,
+) -> bool {
+    let chunk = build_multipart_chunk(name, data, boundary);
+    tx.send(Ok(chunk)).await.is_ok()
+}
+
+/// Processes one JoinSet task result: sends the chunk if successful, logs otherwise.
+/// Returns `false` if the client disconnected and the stream should stop.
+async fn forward_batch_item(
+    res: Result<Result<(String, Vec<u8>), String>, tokio::task::JoinError>,
+    tx: &mpsc::Sender<Result<Bytes, std::convert::Infallible>>,
+    boundary: &str,
+    has_items: &mut bool,
+) -> bool {
+    match res {
+        Ok(Ok((name, data))) => {
+            *has_items = true;
+            if !send_chunk(tx, &name, &data, boundary).await {
+                tracing::warn!("Client disconnected before stream finished");
+                return false;
+            }
+        }
+        Ok(Err(e)) => tracing::warn!("Batch item skipped: {}", e),
+        Err(e) => tracing::error!("Join error: {}", e),
+    }
+    true
+}
+
+/// Drains the JoinSet, sending each result as a multipart chunk.
+/// Appends the closing boundary after all items are sent.
+async fn drain_set(
     mut set: JoinSet<Result<(String, Vec<u8>), String>>,
     tx: mpsc::Sender<Result<Bytes, std::convert::Infallible>>,
     boundary: &'static str,
 ) {
-    tokio::spawn(async move {
-        let mut has_items = false;
+    let mut has_items = false;
 
-        while let Some(res) = set.join_next().await {
-            match res {
-                Ok(Ok((name, data))) => {
-                    has_items = true;
-                    let chunk = build_multipart_chunk(&name, &data, boundary);
-                    if tx.send(Ok(chunk)).await.is_err() {
-                        tracing::warn!("Client disconnected before stream finished");
-                        break;
-                    }
-                }
-                Ok(Err(e)) => {
-                    tracing::warn!("Batch item skipped: {}", e);
-                }
-                Err(e) => {
-                    tracing::error!("Join error: {}", e);
-                }
-            }
+    while let Some(res) = set.join_next().await {
+        if !forward_batch_item(res, &tx, boundary, &mut has_items).await {
+            break;
         }
+    }
 
-        if has_items {
-            let final_boundary = format!("--{boundary}--\r\n");
-            let _ = tx.send(Ok(Bytes::from(final_boundary))).await;
-        }
-    });
+    if has_items {
+        let final_boundary = format!("--{boundary}--\r\n");
+        let _ = tx.send(Ok(Bytes::from(final_boundary))).await;
+    }
 }
 
-/// Récupère un batch de ressources en parallèle
+fn spawn_stream(
+    set: JoinSet<Result<(String, Vec<u8>), String>>,
+    tx: mpsc::Sender<Result<Bytes, std::convert::Infallible>>,
+    boundary: &'static str,
+) {
+    tokio::spawn(drain_set(set, tx, boundary));
+}
+
+/// Fetches a batch of resources in parallel.
 ///
 /// # Route
 /// `POST /r/bulk`
@@ -114,7 +142,7 @@ fn spawn_stream(
 /// ```
 ///
 /// # Response
-/// Multipart/mixed contenant toutes les ressources traitées
+/// `multipart/mixed` containing all processed resources.
 #[utoipa::path(
     post,
     path = "/r/bulk",

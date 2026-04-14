@@ -2,7 +2,7 @@ use crate::models::device::DeviceConfig;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-/// Catégories de ressources disponibles
+/// Available resource categories.
 #[derive(Debug, Clone, Copy)]
 pub enum ResourceCategory {
     Icons,
@@ -14,7 +14,7 @@ pub enum ResourceCategory {
 }
 
 impl ResourceCategory {
-    /// Retourne le préfixe S3 pour cette catégorie
+    /// Returns the S3 prefix for this category.
     #[must_use]
     pub fn s3_prefix(&self) -> &str {
         match self {
@@ -44,14 +44,14 @@ impl FromStr for ResourceCategory {
     }
 }
 
-/// Item pour une requête batch
+/// Single item in a batch request.
 #[derive(Debug, Deserialize, Serialize, Clone, utoipa::ToSchema)]
 pub struct BatchResourceItem {
     pub category: String,
     pub path: String,
 }
 
-/// Requête pour récupérer un batch de ressources
+/// Request body for the bulk resource endpoint.
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct BatchResourceRequest {
     pub config: DeviceConfig,

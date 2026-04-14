@@ -3,21 +3,21 @@ use opentelemetry_otlp::{SpanExporter, WithExportConfig};
 use opentelemetry_sdk::{Resource, trace::SdkTracerProvider};
 use opentelemetry_semantic_conventions::resource::{SERVICE_NAME, SERVICE_VERSION};
 
-/// Initialise le pipeline OpenTelemetry → OTLP → Jaeger.
+/// Initializes the OpenTelemetry pipeline → OTLP → Jaeger.
 ///
-/// Variables d'environnement :
-/// - `OTEL_EXPORTER_OTLP_ENDPOINT` : endpoint gRPC OTLP
-///   (défaut : `http://jaeger-collector.ns-sae5-z11.svc.cluster.local:4317`)
-/// - `OTEL_SERVICE_NAME` : nom du service dans Jaeger (défaut : `api_s3`)
+/// Environment variables:
+/// - `OTEL_EXPORTER_OTLP_ENDPOINT`: gRPC OTLP endpoint
+///   (default: `http://your-super-jaeger.svc.cluster.local:4317`)
+/// - `OTEL_SERVICE_NAME`: service name reported in traces (default: crate name)
 ///
-/// Retourne le `SdkTracerProvider` pour permettre un shutdown propre.
+/// Returns the `SdkTracerProvider` for graceful shutdown.
 ///
 /// # Panics
-/// Panique si l'exporteur OTLP ne peut pas être construit (endpoint invalide, tonic indisponible).
+/// Panics if the OTLP exporter cannot be built (invalid endpoint, tonic unavailable).
 #[must_use]
 pub fn init_tracer() -> SdkTracerProvider {
     let endpoint = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").unwrap_or_else(|_| {
-        "http://jaeger-collector.ns-sae5-z11.svc.cluster.local:4317".to_string()
+        "http://your-super-jaeger.svc.cluster.local:4317".to_string()
     });
 
     let service_name =
@@ -43,8 +43,8 @@ pub fn init_tracer() -> SdkTracerProvider {
     provider
 }
 
-/// Flush et arrête proprement le `TracerProvider`.
-/// À appeler avant la fin du processus pour envoyer tous les spans en attente.
+/// Flushes and shuts down the `TracerProvider` gracefully.
+/// Call before process exit to ensure all pending spans are exported.
 pub fn shutdown_tracer(provider: &SdkTracerProvider) {
     if let Err(e) = provider.shutdown() {
         tracing::error!("Error shutting down tracer provider: {:?}", e);

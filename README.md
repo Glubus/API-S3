@@ -36,11 +36,6 @@ Most image resizing services (imgproxy, thumbor, Imagor) are written in Go or Py
 - **Native WebP**: libwebp FFI via the [`webp`](https://crates.io/crates/webp) crate
 - **Tiny footprint**: ~10 MB Docker image, ~20 MB RSS at idle
 
-## Benchmarks
-
-> Measured on Intel i7-13620H, 64 GB RAM (`cargo bench`)
-
-_Results coming soon. Run `cargo bench` on your machine and open a PR!_
 
 ## Features
 

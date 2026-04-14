@@ -1,21 +1,21 @@
 use crate::services::errors::ImageProcessingError;
 use fast_image_resize::PixelType;
 
-/// Encode une image en WebP lossy via libwebp avec optimisation vitesse.
+/// Encodes raw pixel data to lossy WebP via libwebp with speed optimization.
 ///
 /// # Arguments
-/// * `data` - Le buffer contenant les pixels bruts
-/// * `width` - Largeur de l'image
-/// * `height` - Hauteur de l'image
-/// * `pixel_type` - Type de pixel (U8x3 pour RGB, U8x4 pour RGBA)
-/// * `quality` - La qualité de l'encodage (0-100).
+/// * `data` - Raw pixel buffer.
+/// * `width` - Image width in pixels.
+/// * `height` - Image height in pixels.
+/// * `pixel_type` - Pixel format (`U8x3` for RGB, `U8x4` for RGBA).
+/// * `quality` - WebP encoding quality (0–100).
 ///
 /// # Returns
-/// * `Ok(Vec<u8>)` - Le buffer WebP encodé.
-/// * `Err(ImageProcessingError)` - Si l'encodage échoue.
+/// * `Ok(Vec<u8>)` - Encoded WebP bytes.
+/// * `Err(ImageProcessingError)` - If encoding fails.
 ///
 /// # Errors
-/// * `ImageProcessingError::EncodeError` - Si l'encodage échoue.
+/// * `ImageProcessingError::EncodeError` - If encoding fails.
 pub fn encode_image(
     data: &[u8],
     width: u32,

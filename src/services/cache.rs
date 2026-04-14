@@ -2,15 +2,15 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// Cache en mémoire pour les images traitées.
+/// In-memory cache for processed images.
 ///
-/// # Pourquoi ce cache ?
-/// Évite de traiter plusieurs fois la même image avec les mêmes dimensions,
-/// ce qui est coûteux en CPU.
+/// # Why this cache?
+/// Avoids re-processing the same image at the same dimensions,
+/// which is CPU-expensive (decode + resize + encode).
 ///
-/// # Limites
-/// - Max 100 Mo de RAM.
-/// - Clé : `(nom_image, width, height)`.
+/// # Limits
+/// - Max 100 MB of RAM.
+/// - Key: `(image_name, width, height)`.
 pub struct ImageCache {
     storage: RwLock<HashMap<String, Vec<u8>>>,
     current_size: AtomicUsize,
@@ -18,7 +18,7 @@ pub struct ImageCache {
 }
 
 impl ImageCache {
-    /// Crée une nouvelle instance de cache avec une limite donnée.
+    /// Creates a new cache instance with the given byte capacity.
     #[must_use]
     pub fn new(max_size_bytes: usize) -> Self {
         Self {
@@ -28,14 +28,14 @@ impl ImageCache {
         }
     }
 
-    /// Tente de récupérer une image du cache.
+    /// Attempts to retrieve a processed image from the cache.
     pub fn get(&self, name: &str, w: u32, h: u32) -> Option<Vec<u8>> {
         let key = format!("{name}_{w}_{h}");
         let storage = self.storage.read().ok()?;
         storage.get(&key).cloned()
     }
 
-    /// Ajoute une image au cache si l'espace le permet.
+    /// Inserts an image into the cache if capacity allows.
     pub fn set(&self, name: &str, w: u32, h: u32, data: Vec<u8>) {
         let size = data.len();
         let key = format!("{name}_{w}_{h}");
@@ -58,13 +58,12 @@ impl ImageCache {
     }
 }
 
-/// Instance globale unique du cache (20 Mo).
-/// Utilisation de `std::sync::OnceLock` pour une initialisation paresseuse sécurisée.
+/// Global singleton cache instance (20 MB).
+/// Uses `std::sync::OnceLock` for safe lazy initialization.
 ///
-/// # Pourquoi 20 Mo ?
-/// Réduit de 50 Mo à 20 Mo pour laisser suffisamment de headroom mémoire
-/// au pipeline de traitement d'images (decode + resize + sharpen + encode)
-/// dans le budget de 500 Mi du pod Kubernetes.
+/// # Why 20 MB?
+/// Reduced from 50 MB to leave enough headroom for the image processing pipeline
+/// (decode + resize + sharpen + encode) within the 500 Mi Kubernetes pod budget.
 pub static GLOBAL_CACHE: std::sync::OnceLock<ImageCache> = std::sync::OnceLock::new();
 
 pub fn get_global_cache() -> &'static ImageCache {

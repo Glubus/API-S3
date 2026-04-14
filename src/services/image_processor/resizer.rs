@@ -1,15 +1,19 @@
 use super::decoder::RawImage;
 use crate::models::device::DeviceConfig;
 use crate::services::errors::ImageProcessingError;
-/// Calcule les dimensions cibles pour l'image redimensionnée.
+
+/// Computes the target dimensions for the resized image.
+///
+/// Scales down proportionally to fit within `config.width` × `config.height`
+/// while never upscaling (scale is capped at 1.0).
 ///
 /// # Arguments
-/// * `w` - La largeur de l'image source.
-/// * `h` - La hauteur de l'image source.
-/// * `config` - La configuration du périphérique.
+/// * `w` - Source image width.
+/// * `h` - Source image height.
+/// * `config` - Device configuration.
 ///
 /// # Returns
-/// Un tuple contenant la largeur et la hauteur cibles.
+/// A `(target_width, target_height)` tuple.
 #[allow(clippy::cast_precision_loss)]
 #[allow(clippy::cast_sign_loss)]
 #[allow(clippy::cast_possible_truncation)]
@@ -53,12 +57,14 @@ fn extract_dynamic_pixels(
         )),
     }
 }
-/// Extrait les pixels d'une image brute.
+
+/// Extracts a raw pixel slice and pixel type from a `RawImage`.
 ///
 /// # Arguments
-/// * `src_image` - L'image source.
+/// * `src_image` - Source image.
+///
 /// # Errors
-/// * `ImageProcessingError::InternalError` - Si le type d'image n'est pas supporté.
+/// * `ImageProcessingError::InternalError` - If the image type is not supported.
 pub fn extract_pixels(
     src_image: &RawImage,
 ) -> Result<(&[u8], fast_image_resize::PixelType), ImageProcessingError> {
@@ -68,17 +74,18 @@ pub fn extract_pixels(
         RawImage::Fallback(dyn_img) => extract_dynamic_pixels(dyn_img),
     }
 }
-/// Redimensionne une image aux dimensions cibles.
+
+/// Resizes an image to target dimensions using Lanczos3 (SIMD-accelerated).
 ///
 /// # Arguments
-/// * `src_image` - L'image source.
-/// * `w` - La largeur de l'image source.
-/// * `h` - La hauteur de l'image source.
-/// * `target_w` - La largeur de l'image cible.
-/// * `target_h` - La hauteur de l'image cible.
+/// * `src_image` - Source image.
+/// * `w` - Source width.
+/// * `h` - Source height.
+/// * `target_w` - Target width.
+/// * `target_h` - Target height.
 ///
 /// # Errors
-/// * `ImageProcessingError::InternalError` - Si l'image source ou cible a une dimension de 0.
+/// * `ImageProcessingError::InternalError` - If any dimension is 0 or resize fails.
 pub fn resize_image(
     src_image: &RawImage,
     w: u32,
