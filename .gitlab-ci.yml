@@ -1,0 +1,8 @@
+include:
+  - local: .ci/base.yml
+  - local: .ci/build.yml
+  - local: .ci/quality.yml
+  - local: .ci/sonar.yml
+  - local: .ci/package.yml
+  - local: .ci/deploy.yml
+  - local: .ci/preprod.yml

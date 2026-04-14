@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: your-super-namespace-preprod
+resources:
+  - ../../base
+images:
+  - name: api_s3
+    newName: your-super-registry.example.com/your-super-namespace/api_s3
+    newTag: pre-prod
+patches:
+  - path: ingress-patch.yml

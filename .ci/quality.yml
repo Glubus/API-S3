@@ -1,0 +1,86 @@
+lint:
+  extends: [.rust-base]
+  stage: quality
+  needs: [build-lib]
+  cache:
+    policy: pull
+  script:
+    - rustup component add clippy
+    - cargo clippy -- -D clippy::pedantic -D warnings
+  rules:
+    - when: never
+  tags:
+    - glubus-rust
+
+test:
+  extends: [.rust-base]
+  stage: quality
+  needs: [build-lib]
+  cache:
+    policy: pull
+  script:
+    - cargo test --verbose
+  rules:
+    - when: never
+  tags:
+    - glubus-rust
+
+fmt:
+  extends: [.rust-base]
+  stage: quality
+  needs: [build-lib]
+  cache:
+    policy: pull
+  script:
+    - rustup component add rustfmt
+    - cargo fmt -- --check
+  rules:
+    - when: never
+  tags:
+    - glubus-rust
+
+lint-docker:
+  extends: [.rust-base-docker]
+  stage: quality
+  script:
+    - rustup component add clippy
+    - cargo clippy --message-format=json -- -D clippy::pedantic -D warnings 2>/dev/null > clippy-report.json || true
+    - cargo clippy -- -D clippy::pedantic -D warnings
+  artifacts:
+    paths:
+      - clippy-report.json
+    expire_in: 1 hour
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "pre-prod"'
+    - if: "$CI_MERGE_REQUEST_ID"
+  tags:
+    - docker
+
+test-docker:
+  extends: [.rust-base-docker]
+  stage: quality
+  script:
+    - cargo test --verbose
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "pre-prod"'
+    - if: "$CI_MERGE_REQUEST_ID"
+  tags:
+    - docker
+
+fmt-docker:
+  extends: [.rust-base-docker]
+  stage: quality
+  script:
+    - rustup component add rustfmt
+    - cargo fmt -- --check
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "pre-prod"'
+    - if: "$CI_MERGE_REQUEST_ID"
+  tags:
+    - docker

@@ -1,0 +1,11 @@
+repos:
+  - repo: local
+    hooks:
+      - id: audit
+        name: Audit (fmt-check + clippy + tests)
+        language: system
+        # Runs: cargo fmt --check, cargo clippy -D pedantic -D warnings, cargo test
+        entry: just audit
+        pass_filenames: false
+        # Only trigger when Rust source files change
+        types: [rust]

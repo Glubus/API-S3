@@ -1,0 +1,33 @@
+package-prod:
+  stage: package
+  image: docker:latest
+  tags:
+    - docker
+  before_script:
+    - docker login -u $HARBOR_USER -p $HARBOR_TOKEN $HARBOR_REGISTRY
+  script:
+    - docker build -t $PROD_IMAGE_NAME -f Dockerfile .
+    - docker push $PROD_IMAGE_NAME
+  needs:
+    - lint-docker
+    - test-docker
+    - fmt-docker
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+
+package-preprod:
+  stage: package
+  image: docker:latest
+  tags:
+    - docker
+  before_script:
+    - docker login -u $HARBOR_USER -p $HARBOR_TOKEN $HARBOR_REGISTRY
+  script:
+    - docker build -t $PREPROD_IMAGE_NAME -f Dockerfile .
+    - docker push $PREPROD_IMAGE_NAME
+  needs:
+    - lint-docker
+    - test-docker
+    - fmt-docker
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "pre-prod"'

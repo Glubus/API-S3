@@ -1,0 +1,78 @@
+[package]
+name = "api_s3"
+version = "1.0.0"
+edition = "2024"
+
+# === Web Framework ===
+[dependencies]
+# Axum: async HTTP framework built on top of Tokio + Tower
+axum = "0.8.8"
+# Tokio: async runtime (full feature set for production use)
+tokio = { version = "1.50", features = ["full"] }
+
+# === Serialization ===
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+
+# === Configuration ===
+# Loads .env file into environment variables at startup
+dotenvy = "0.15.7"
+
+# === Image Processing ===
+# image: generic decode/encode (JPEG, PNG, WebP, …)
+image = { version = "0.25.9", features = ["default", "webp"] }
+# fast_image_resize: SIMD-accelerated pixel resampling
+fast_image_resize = "6.0"
+# zune-jpeg: fast pure-Rust JPEG decoder
+zune-jpeg = "0.5.12"
+# zune-core: shared primitives for zune codecs
+zune-core = "0.5.1"
+# webp: libwebp FFI bindings for native WebP encode/decode
+webp = "0.3.1"
+
+# === Observability ===
+tracing = "0.1"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+tracing-opentelemetry = "0.32"
+opentelemetry = { version = "0.31", features = ["trace"] }
+opentelemetry_sdk = { version = "0.31", features = ["rt-tokio", "trace"] }
+# Exports traces via OTLP gRPC (compatible with Jaeger, Tempo, …)
+opentelemetry-otlp = { version = "0.31", features = ["trace", "grpc-tonic"] }
+opentelemetry-semantic-conventions = "0.31"
+
+# === HTTP Middleware ===
+tower = { version = "0.5.3", features = ["util"] }
+tower-http = { version = "0.6", features = ["trace"] }
+
+# === Error Handling ===
+thiserror = "2.0.18"
+
+# === Memory Allocator ===
+# mimalloc: high-performance allocator from Microsoft, replaces system malloc
+mimalloc = "0.1.48"
+
+# === HTTP Extras ===
+# axum-extra: multipart form parsing for bulk image upload endpoint
+axum-extra = { version = "0.12.5", features = ["multipart"] }
+
+# === AWS S3 / MinIO Client ===
+aws-sdk-s3 = "1.124"
+aws-config = "1.8"
+
+# === API Documentation ===
+# utoipa: OpenAPI 3 spec generation from Rust types + Axum routes
+utoipa = { version = "5.4.0", features = ["axum_extras"] }
+# utoipa-scalar: Scalar UI served at /docs
+utoipa-scalar = { version = "0.3.0", features = ["axum"] }
+
+# === Async Streaming ===
+# Used for multipart/mixed streaming responses (bulk endpoint)
+tokio-stream = { version = "0.1.18", features = ["sync"] }
+
+[dev-dependencies]
+# criterion: statistical benchmarking framework
+criterion = { version = "0.8", features = ["async_tokio"] }
+
+[[bench]]
+name = "image_benchmark"
+harness = false

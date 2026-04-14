@@ -1,0 +1,30 @@
+build-lib:
+  extends: [.rust-base]
+  stage: build
+  script:
+    - cargo build --tests --verbose
+  artifacts:
+    paths:
+      - target/debug/deps/
+      - target/debug/build/
+      - target/.rustc_info.json
+    exclude:
+      - target/debug/deps/*.d
+    expire_in: 2 hours
+  rules:
+    - when: never
+  tags:
+    - glubus-rust
+
+build-lib-docker:
+  extends: [.rust-base-docker]
+  stage: build
+  variables:
+    RUNNER_SCRIPT_TIMEOUT: 25m
+  script:
+    - cargo build --tests --verbose
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "pre-prod"'
+    - if: "$CI_MERGE_REQUEST_ID"

@@ -1,0 +1,8 @@
+target/
+.git/
+.env
+.idea/
+.vscode/
+labs-config/
+.agent/
+.ci/

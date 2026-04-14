@@ -1,0 +1,48 @@
+stages:
+  - build
+  - quality
+  - sonar
+  - package
+  - deploy
+
+variables:
+  CARGO_HOME: $CI_PROJECT_DIR/.cargo
+  # Replace with your container registry (e.g. registry.example.com)
+  HARBOR_REGISTRY_NO_PREFIX: your-super-registry.example.com
+  HARBOR_REGISTRY: your-super-registry.example.com
+  # Production image pushed on master branch
+  PROD_IMAGE_NAME: $HARBOR_REGISTRY_NO_PREFIX/your-super-namespace/api_s3:latest
+  # Pre-production image pushed on pre-prod branch
+  PREPROD_IMAGE_NAME: $HARBOR_REGISTRY_NO_PREFIX/your-super-namespace/api_s3:pre-prod
+  # kubectl context name configured in your GitLab agent
+  KUBE_CONTEXT: your-super-cluster/your-super-agent:your-super-context
+  KUBECTL: "kubectl --insecure-skip-tls-verify"
+  # Kubernetes namespaces for each environment
+  K8S_NAMESPACE: your-super-namespace
+  PREPROD_K8S_NAMESPACE: your-super-namespace-preprod
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG-rust"
+  paths:
+    - .cargo/registry/
+    - .cargo/git/
+  policy: pull-push
+
+# Base template for jobs running on a native Rust runner
+.rust-base:
+  tags:
+    - glubus-rust
+  variables:
+    GIT_STRATEGY: fetch
+  before_script:
+    - echo "Using local Rust toolchain on glubus-rust runner"
+
+# Base template for jobs running inside a Docker Rust image
+.rust-base-docker:
+  image: rust:latest
+  tags:
+    - docker
+  variables:
+    RUNNER_SCRIPT_TIMEOUT: 15m
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq mold

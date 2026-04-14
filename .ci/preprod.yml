@@ -1,0 +1,19 @@
+version-bump-and-merge:
+  stage: build
+  image: rust:latest
+  tags:
+    - glubus-docker
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git
+    - git config user.email "ci-bot@gitlab"
+    - git config user.name "GitLab CI Bot"
+    - git remote set-url origin "https://oauth2:${CI_BOT_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - git fetch origin
+    - git checkout dev
+  script:
+    - bash scripts/version-bump-merge.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == "dev"'
+  artifacts:
+    reports:
+      dotenv: bump.env
